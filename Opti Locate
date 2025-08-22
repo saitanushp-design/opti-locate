@@ -1,0 +1,1007 @@
+import os, zipfile, textwrap
+
+# Define the Streamlit app code
+app_py = r'''import streamlit as st
+from typing import Dict, List
+import io
+
+st.set_page_config(page_title="Smart Franchise Locator (BLR & HYD)", layout="wide")
+
+st.title("🏬 Smart Franchise Locator — Bangalore & Hyderabad")
+st.write("Type any business (e.g., **cafe, gym, salon, restaurant, bakery, pharmacy, retail, electronics, coworking, coaching**). You'll get the **best localities** in Bangalore & Hyderabad with **advantages, risks, budget, permits, infra & marketing tactics**.")
+
+# ----------------------------
+# Knowledge base (curated)
+# ----------------------------
+
+CityLocalities = {
+    "Bangalore": ["Koramangala", "Indiranagar", "Whitefield"],
+    "Hyderabad": ["Jubilee Hills", "Madhapur", "Gachibowli"],
+}
+
+# Detailed per-business intelligence
+KB: Dict[str, Dict[str, Dict[str, Dict[str, List[str] or str]]]] = {
+    "cafe": {
+        "Bangalore": {
+            "Koramangala": {
+                "advantages": [
+                    "Youth + startup crowd; strong café-hopping culture",
+                    "High social media discovery via reels & food bloggers"
+                ],
+                "risks": [
+                    "High rentals on 80 ft/100 ft roads",
+                    "Intense competition from specialty coffee brands"
+                ],
+                "budget": "₹15–25 lakhs (interiors, barista setup, kitchen, 6 months ops)",
+                "legal": ["FSSAI license", "BBMP trade license", "GST", "Music/public performance licenses (if events)"],
+                "space_type": "800–1200 sq.ft. high-street, good frontage",
+                "target_customers": "Students, startup employees, young families",
+                "infra": ["2–3 kW espresso setup", "Ventilation for light kitchen", "10–20 covers", "Wi‑Fi"],
+                "marketing": [
+                    "Student partnerships (Christ/JNC) with weekday combos",
+                    "Influencer tasting nights; UGC reels",
+                    "Open-mic & board-game evenings to drive retention"
+                ],
+                "success_tip": "Late-evening menu + dessert collabs to lift AOV."
+            },
+            "Indiranagar": {
+                "advantages": [
+                    "Affluent, brand-conscious audience; nightlife footfall",
+                    "High willingness to pay for specialty beans/ambience"
+                ],
+                "risks": ["Very high rentals", "Customer expectations for premium service"],
+                "budget": "₹20–35 lakhs",
+                "legal": ["FSSAI", "Trade license", "Outdoor seating permit (if applicable)", "GST"],
+                "space_type": "1000–1500 sq.ft. premium high-street or corner",
+                "target_customers": "Affluent millennials, expats, creators",
+                "infra": ["Specialty roaster tie-ups", "POS + loyalty", "Acoustic treatment for events"],
+                "marketing": [
+                    "Collabs with lifestyle boutiques/gyms",
+                    "‘Latte art’ workshops; limited seasonal menus",
+                    "Influencer-led launch with RSVP"
+                ],
+                "success_tip": "Build a membership/loyalty program with prepaid coffee cards."
+            },
+            "Whitefield": {
+                "advantages": [
+                    "IT parks + gated communities; strong weekday coffee demand",
+                    "Family-friendly brunch potential"
+                ],
+                "risks": ["Weekend city-center drift reduces footfall", "Higher CAC for discovery"],
+                "budget": "₹12–22 lakhs",
+                "legal": ["FSSAI", "Trade license", "GST"],
+                "space_type": "800–1200 sq.ft. in community high-street or near tech park",
+                "target_customers": "IT professionals, young families",
+                "infra": ["Delivery integration (Swiggy/Zomato)", "Kids‑friendly seating", "Parking if possible"],
+                "marketing": [
+                    "Corporate breakfast subscriptions",
+                    "Family brunch offers; kids corner activities",
+                    "Apartment community pop-ups"
+                ],
+                "success_tip": "Secure weekday corporate orders to stabilize revenue."
+            },
+        },
+        "Hyderabad": {
+            "Jubilee Hills": {
+                "advantages": ["Premium crowd; influencer density", "High ASP for artisanal products"],
+                "risks": ["Very high rentals", "High fit-out expectations"],
+                "budget": "₹18–30 lakhs",
+                "legal": ["FSSAI", "Trade license (GHMC)", "GST"],
+                "space_type": "1000–1500 sq.ft. premium high-street",
+                "target_customers": "Celebs, creators, high-income families",
+                "infra": ["High-end interiors", "Photo-friendly corners", "Valet/parking coordination"],
+                "marketing": [
+                    "Influencer launch nights",
+                    "Chef/café brand collaborations",
+                    "Premium dessert & coffee pairings"
+                ],
+                "success_tip": "Prioritize Instagrammable plating & décor for organic reach."
+            },
+            "Madhapur": {
+                "advantages": ["Dense IT workforce; steady weekday demand"],
+                "risks": ["Competition from chains; price pressure"],
+                "budget": "₹12–20 lakhs",
+                "legal": ["FSSAI", "GHMC trade license", "GST"],
+                "space_type": "800–1100 sq.ft. in office cluster/tech park approach roads",
+                "target_customers": "IT employees, co-working users",
+                "infra": ["Fast service line", "Delivery-first packaging", "Loyalty wallet"],
+                "marketing": [
+                    "Office meal combos & subscriptions",
+                    "LinkedIn ads to HR/Office admins",
+                    "Collabs with co-working spaces"
+                ],
+                "success_tip": "Speed of service + delivery SLA wins repeat orders."
+            },
+            "Gachibowli": {
+                "advantages": ["Students (ISB/IIIT) + IT parks; budget-friendly crowd"],
+                "risks": ["Price sensitivity; exam-season dips"],
+                "budget": "₹10–18 lakhs",
+                "legal": ["FSSAI", "Trade license", "GST"],
+                "space_type": "600–1000 sq.ft. near hostels/campuses",
+                "target_customers": "Students, young professionals",
+                "infra": ["Affordable combos", "Study-friendly seating", "Strong Wi‑Fi"],
+                "marketing": [
+                    "Campus ambassador program",
+                    "Student nights & open-mic",
+                    "Referral coupons with nearby PGs"
+                ],
+                "success_tip": "Keep an entry-level combo ≤ ₹99 to hook price-sensitive users."
+            },
+        },
+    },
+
+    "gym": {
+        "Bangalore": {
+            "HSR Layout": {
+                "advantages": ["Young IT/entrepreneur crowd", "Health-conscious locality"],
+                "risks": ["Boutique gym competition", "Trainer attrition"],
+                "budget": "₹25–40 lakhs",
+                "legal": ["Trade license", "Fire safety NOC", "GST"],
+                "space_type": "2500–3500 sq.ft. standalone/high-street",
+                "target_customers": "Students, working professionals",
+                "infra": ["Cardio + weights", "Group class studio", "Showers/lockers"],
+                "marketing": [
+                    "Tie-ups with PGs/hostels",
+                    "Transformation challenges",
+                    "Micro-influencer fitness reels"
+                ],
+                "success_tip": "24/7 access via biometric boosts enrollments."
+            },
+            "Koramangala": {
+                "advantages": ["Dense population; strong demand for group classes"],
+                "risks": ["High rentals; Cult/boutique competition"],
+                "budget": "₹30–50 lakhs",
+                "legal": ["Trade license", "Fire NOC", "Music PPL/IPA if classes"],
+                "space_type": "3000–4000 sq.ft.",
+                "target_customers": "Students, startup pros",
+                "infra": ["CrossFit zone", "PT rooms", "Protein bar corner"],
+                "marketing": [
+                    "Student passes & night batches",
+                    "Corporate startup tie-ups",
+                    "Referral leaderboard with prizes"
+                ],
+                "success_tip": "Offer hybrid PT (offline + app) to increase ARPU."
+            },
+            "Whitefield": {
+                "advantages": ["IT parks; family memberships"],
+                "risks": ["Weekend drop-offs", "Parking constraints"],
+                "budget": "₹22–35 lakhs",
+                "legal": ["Trade license", "Fire NOC", "GST"],
+                "space_type": "2500–3000 sq.ft.",
+                "target_customers": "IT professionals, families",
+                "infra": ["Kids-friendly classes", "Ample lockers", "Parking arrangements"],
+                "marketing": [
+                    "Corporate wellness tie-ups",
+                    "Family combo memberships",
+                    "Apartment community demos"
+                ],
+                "success_tip": "AM & late PM slots aligned to IT shifts drive utilization."
+            },
+        },
+        "Hyderabad": {
+            "Madhapur": {
+                "advantages": ["Large IT workforce", "Subscription-friendly segment"],
+                "risks": ["Big-brand competition", "Work-hour drop-offs"],
+                "budget": "₹30–50 lakhs",
+                "legal": ["GHMC trade license", "Fire NOC", "GST"],
+                "space_type": "3000–4000 sq.ft. mall/top floor",
+                "target_customers": "IT employees",
+                "infra": ["Premium equipment", "Showers", "PT pods"],
+                "marketing": [
+                    "Corporate group discounts",
+                    "LinkedIn lead-gen to HRs",
+                    "12-week transformation cohorts"
+                ],
+                "success_tip": "Sell corporate invoices (B2B) to flatten seasonality."
+            },
+            "Gachibowli": {
+                "advantages": ["Students + IT mix", "Affordable spaces"],
+                "risks": ["Price sensitivity"],
+                "budget": "₹20–35 lakhs",
+                "legal": ["Trade license", "GST"],
+                "space_type": "2500–3000 sq.ft. near campuses",
+                "target_customers": "Students, young pros",
+                "infra": ["Basic cardio/weights", "Group classes"],
+                "marketing": [
+                    "Campus ambassadors",
+                    "Student monthly plans",
+                    "Evening Zumba batches"
+                ],
+                "success_tip": "Offer semester plans and freeze options."
+            },
+            "Jubilee Hills": {
+                "advantages": ["Premium clientele; PT heavy market"],
+                "risks": ["High rentals; high expectations"],
+                "budget": "₹40–60 lakhs",
+                "legal": ["Trade license", "Fire NOC", "GST"],
+                "space_type": "3500–4500 sq.ft. premium",
+                "target_customers": "High-income families, celebs",
+                "infra": ["Spa/sauna", "Boutique PT rooms", "Valet"],
+                "marketing": [
+                    "Celebrity trainer sessions",
+                    "Premium influencer shoots",
+                    "Invite-only launch parties"
+                ],
+                "success_tip": "Focus on high-margin PT packages over basic memberships."
+            },
+        },
+    },
+
+    "salon": {
+        "Bangalore": {
+            "Indiranagar": {
+                "advantages": ["Premium beauty spend", "Walk-in + appointment mix"],
+                "risks": ["High rentals", "Staff churn"],
+                "budget": "₹18–30 lakhs",
+                "legal": ["Trade license", "GST", "Cosmetic waste disposal norms"],
+                "space_type": "800–1200 sq.ft. high-street",
+                "target_customers": "Affluent millennials, professionals",
+                "infra": ["3–5 chairs", "Private facial room", "Retail shelf"],
+                "marketing": [
+                    "Influencer makeovers",
+                    "Memberships with monthly credits",
+                    "Cross-sell with gyms & boutiques"
+                ],
+                "success_tip": "Prepaid credits reduce cancellations and increase LTV."
+            },
+            "Koramangala": {
+                "advantages": ["Student + startup crowd; quick-service demand"],
+                "risks": ["Discount wars"],
+                "budget": "₹12–20 lakhs",
+                "legal": ["Trade license", "GST"],
+                "space_type": "600–900 sq.ft.",
+                "target_customers": "Students, young pros",
+                "infra": ["3 chairs", "Express services menu"],
+                "marketing": [
+                    "Student weekday offers",
+                    "Reels of transformations",
+                    "Referral rewards"
+                ],
+                "success_tip": "Express 20–30 min services lift throughput."
+            },
+            "Jayanagar": {
+                "advantages": ["Family residential area; steady repeat clients"],
+                "risks": ["Lower ASP vs. premium areas"],
+                "budget": "₹10–18 lakhs",
+                "legal": ["Trade license", "GST"],
+                "space_type": "600–800 sq.ft.",
+                "target_customers": "Families, homemakers",
+                "infra": ["Kids-friendly corner", "Comfort seating"],
+                "marketing": [
+                    "Festival bundles (Karva Chauth, Diwali)",
+                    "Apartment tie-ups",
+                    "WhatsApp appointment reminders"
+                ],
+                "success_tip": "Family bundles increase ticket size."
+            },
+        },
+        "Hyderabad": {
+            "Jubilee Hills": {
+                "advantages": ["High ASP; bridal & premium services"],
+                "risks": ["High rentals; strong brand competition"],
+                "budget": "₹20–35 lakhs",
+                "legal": ["Trade license", "GST"],
+                "space_type": "900–1200 sq.ft.",
+                "target_customers": "Brides, influencers, HNI families",
+                "infra": ["Private bridal room", "Makeup studio lighting"],
+                "marketing": [
+                    "Bridal influencer shoots",
+                    "Salon + designer collabs",
+                    "Membership tiers"
+                ],
+                "success_tip": "Premium bridal packages can drive >40% of revenue."
+            },
+            "Madhapur": {
+                "advantages": ["Office-going crowd; weekday demand"],
+                "risks": ["Walk-in variability"],
+                "budget": "₹12–20 lakhs",
+                "legal": ["Trade license", "GST"],
+                "space_type": "600–900 sq.ft.",
+                "target_customers": "IT employees",
+                "infra": ["Quick-service stations", "Online booking"],
+                "marketing": [
+                    "Lunchtime express services",
+                    "Corporate tie-ups",
+                    "Google Maps review campaigns"
+                ],
+                "success_tip": "Prioritize <45 min services for office crowd."
+            },
+            "Kondapur": {
+                "advantages": ["Residential + IT mix"],
+                "risks": ["Price-sensitive families"],
+                "budget": "₹10–18 lakhs",
+                "legal": ["Trade license", "GST"],
+                "space_type": "600–800 sq.ft.",
+                "target_customers": "Families, working couples",
+                "infra": ["Kids-friendly station", "Package menu"],
+                "marketing": [
+                    "Family packs & subscriptions",
+                    "Apartment WhatsApp promos",
+                    "Festival campaigns"
+                ],
+                "success_tip": "Family subscription packs stabilize cash flow."
+            },
+        },
+    },
+
+    "restaurant": {
+        "Bangalore": {
+            "Koramangala": {
+                "advantages": ["High dine-in + delivery demand", "Nightlife adjacency"],
+                "risks": ["License complexity; competition"],
+                "budget": "₹30–60 lakhs (non-alcohol)",
+                "legal": ["FSSAI", "Trade license", "Fire NOC", "Music license"],
+                "space_type": "1200–2000 sq.ft. high-street",
+                "target_customers": "Students, young professionals",
+                "infra": ["Commercial kitchen", "Delivery pass-through window"],
+                "marketing": [
+                    "Delivery platform ads (peak hours)",
+                    "Theme nights & collabs",
+                    "Reels with behind-the-scenes kitchen content"
+                ],
+                "success_tip": "Dual brand (dine-in + delivery-only brand) to maximize kitchen."
+            },
+            "Indiranagar": {
+                "advantages": ["Premium F&B spend", "Event-friendly crowd"],
+                "risks": ["High rentals; compliance scrutiny"],
+                "budget": "₹45–90 lakhs (non-alcohol)",
+                "legal": ["All above + signage & parking norms"],
+                "space_type": "1500–2500 sq.ft. premium",
+                "target_customers": "HNIs, expats, creators",
+                "infra": ["Photo-ready interiors", "Sound control"],
+                "marketing": [
+                    "Chef tables & tasting menus",
+                    "Influencer residency",
+                    "PR coverage in city magazines"
+                ],
+                "success_tip": "Focus on signature dishes that travel well for delivery too."
+            },
+            "Whitefield": {
+                "advantages": ["Family dine-outs; strong weekend traffic"],
+                "risks": ["Weekday reliance on offices"],
+                "budget": "₹25–50 lakhs",
+                "legal": ["FSSAI", "Trade license", "Fire NOC"],
+                "space_type": "1200–1800 sq.ft.",
+                "target_customers": "Families, IT crowd",
+                "infra": ["Kids area", "Ample seating", "Parking"],
+                "marketing": [
+                    "Family brunches",
+                    "Apartment community tasting events",
+                    "Kids-eat-free Wednesdays"
+                ],
+                "success_tip": "Bundle family platters with kids activities."
+            },
+        },
+        "Hyderabad": {
+            "Jubilee Hills": {
+                "advantages": ["Premium experiential dining demand"],
+                "risks": ["Capex heavy fit-outs", "Talent acquisition"],
+                "budget": "₹40–100 lakhs",
+                "legal": ["FSSAI", "Trade license", "Fire NOC"],
+                "space_type": "1800–2800 sq.ft. premium",
+                "target_customers": "Celebs, HNIs, creators",
+                "infra": ["Live kitchen", "Valet", "Event stage"],
+                "marketing": [
+                    "Celebrity chef pop-ups",
+                    "Influencer soft launch",
+                    "PR features & food critics"
+                ],
+                "success_tip": "Focus on photogenic plating and signature cocktails/mocktails."
+            },
+            "Madhapur": {
+                "advantages": ["Office clusters; delivery potential"],
+                "risks": ["Lunch-heavy demand; dinner lighter"],
+                "budget": "₹20–40 lakhs",
+                "legal": ["FSSAI", "Trade license"],
+                "space_type": "1000–1600 sq.ft.",
+                "target_customers": "IT employees",
+                "infra": ["Quick service line", "Strong delivery ops"],
+                "marketing": [
+                    "Corporate meal plans",
+                    "Office park flyers & QR menus",
+                    "Performance marketing 12–3 PM"
+                ],
+                "success_tip": "Speed and consistency > novelty for office segments."
+            },
+            "Gachibowli": {
+                "advantages": ["Student + IT mix; value meals work"],
+                "risks": ["Price-sensitive crowd"],
+                "budget": "₹15–30 lakhs",
+                "legal": ["FSSAI", "Trade license"],
+                "space_type": "800–1400 sq.ft.",
+                "target_customers": "Students, young pros",
+                "infra": ["Compact kitchen", "Shared seating", "Delivery priority"],
+                "marketing": [
+                    "Budget combo menus",
+                    "Campus coupons",
+                    "Hostel tie-ups"
+                ],
+                "success_tip": "Keep hero SKUs with <15 min prep time."
+            },
+        },
+    },
+
+    "retail": {
+        "Bangalore": {
+            "Jayanagar": {
+                "advantages": ["Family shopping destination; steady footfall"],
+                "risks": ["Lower ASP vs. Indiranagar"],
+                "budget": "₹10–20 lakhs (non-luxury apparel/footwear)",
+                "legal": ["Trade license", "GST"],
+                "space_type": "500–900 sq.ft. high-street",
+                "target_customers": "Families, working couples",
+                "infra": ["POS + inventory", "Trial rooms", "Storefront signage"],
+                "marketing": [
+                    "Festival sales & bundles",
+                    "WhatsApp catalog to apartments",
+                    "Google Maps reviews push"
+                ],
+                "success_tip": "Seasonal collections aligned with local festivals."
+            },
+            "Koramangala": {
+                "advantages": ["Youth fashion demand; impulse buying"],
+                "risks": ["Discount-driven segment"],
+                "budget": "₹12–22 lakhs",
+                "legal": ["Trade license", "GST"],
+                "space_type": "500–800 sq.ft.",
+                "target_customers": "Students, young pros",
+                "infra": ["Fast checkout", "Trial mirrors", "UPI QR at entrance"],
+                "marketing": [
+                    "Influencer street fashion reels",
+                    "Student flash sales",
+                    "Collab with cafés for footfall exchange"
+                ],
+                "success_tip": "Limited drops & weekly new arrivals to create urgency."
+            },
+            "Indiranagar": {
+                "advantages": ["Premium fashion appetite"],
+                "risks": ["High rentals; high fit-out cost"],
+                "budget": "₹18–30 lakhs",
+                "legal": ["Trade license", "GST"],
+                "space_type": "700–1000 sq.ft. premium frontage",
+                "target_customers": "Affluent millennials",
+                "infra": ["Visual merchandising lights", "Omni-channel POS"],
+                "marketing": [
+                    "Stylist meetups",
+                    "Influencer trunk shows",
+                    "Members-only previews"
+                ],
+                "success_tip": "Create a VIP list for first access to collections."
+            },
+        },
+        "Hyderabad": {
+            "Banjara Hills": {
+                "advantages": ["Premium shopping belt"],
+                "risks": ["High rentals"],
+                "budget": "₹15–28 lakhs",
+                "legal": ["Trade license", "GST"],
+                "space_type": "600–900 sq.ft. high-street",
+                "target_customers": "HNIs, influencers",
+                "infra": ["Premium fit-out", "Trial rooms"],
+                "marketing": [
+                    "Designer collabs",
+                    "Influencer styling sessions",
+                    "PR features"
+                ],
+                "success_tip": "High-margin accessories increase ticket size."
+            },
+            "Madhapur": {
+                "advantages": ["Office + residential mix; steady walk-ins"],
+                "risks": ["Brand overlap"],
+                "budget": "₹10–18 lakhs",
+                "legal": ["Trade license", "GST"],
+                "space_type": "500–800 sq.ft.",
+                "target_customers": "Working professionals",
+                "infra": ["POS + inventory", "Click & collect"],
+                "marketing": [
+                    "Office park leaflets",
+                    "Google Local ads",
+                    "Apartment community stalls"
+                ],
+                "success_tip": "Run end-of-month salary weekend promos."
+            },
+            "Kukatpally": {
+                "advantages": ["Value-conscious families; high density"],
+                "risks": ["Price competition"],
+                "budget": "₹8–15 lakhs",
+                "legal": ["Trade license", "GST"],
+                "space_type": "500–700 sq.ft.",
+                "target_customers": "Families, students",
+                "infra": ["Efficient inventory", "Value displays"],
+                "marketing": [
+                    "Bundle pricing",
+                    "Local print/radio",
+                    "WhatsApp neighborhood groups"
+                ],
+                "success_tip": "Bundle 2+1 offers drive conversions."
+            },
+        },
+    },
+
+    # Additional common types (lightweight but helpful)
+    "pharmacy": {
+        "Bangalore": {
+            "Jayanagar": {
+                "advantages": ["Residential density; chronic medication demand"],
+                "risks": ["Margin pressure vs. chains"],
+                "budget": "₹12–20 lakhs (inventory-heavy)",
+                "legal": ["Drug license", "Pharmacist on roll", "Trade license", "GST"],
+                "space_type": "300–500 sq.ft.",
+                "target_customers": "Families, seniors",
+                "infra": ["Cold storage", "Inventory software", "24x7 shutters (if late hours)"],
+                "marketing": [
+                    "Apartment tie-ups for delivery",
+                    "Doctor clinic partnerships",
+                    "Subscription refills"
+                ],
+                "success_tip": "Auto-refill subscriptions reduce churn."
+            },
+            "Koramangala": {
+                "advantages": ["Young crowd; OTC/fitness supplements demand"],
+                "risks": ["High rent corner spots"],
+                "budget": "₹12–22 lakhs",
+                "legal": ["Drug license", "Trade license", "GST"],
+                "space_type": "300–500 sq.ft.",
+                "target_customers": "Students, young pros",
+                "infra": ["Supplements rack", "E-pharmacy tie-ins"],
+                "marketing": [
+                    "Gym partnerships",
+                    "WhatsApp order & 30‑min delivery",
+                    "Google Maps optimization"
+                ],
+                "success_tip": "Add FMCG essentials to grow basket size."
+            },
+            "Whitefield": {
+                "advantages": ["Family communities; predictable demand"],
+                "risks": ["Price matching with online players"],
+                "budget": "₹10–18 lakhs",
+                "legal": ["Drug license", "Trade license", "GST"],
+                "space_type": "300–500 sq.ft.",
+                "target_customers": "Families, seniors",
+                "infra": ["Temperature control", "Home delivery"],
+                "marketing": [
+                    "Subscription for chronic meds",
+                    "Apartment health camps",
+                    "Doctor referral networks"
+                ],
+                "success_tip": "Offer free BP/sugar checks to drive footfall."
+            },
+        },
+        "Hyderabad": {
+            "Madhapur": {
+                "advantages": ["Working professionals; late-hour needs"],
+                "risks": ["Competition from 24x7 chains"],
+                "budget": "₹10–18 lakhs",
+                "legal": ["Drug license", "Pharmacist on duty", "GST"],
+                "space_type": "250–450 sq.ft.",
+                "target_customers": "IT employees",
+                "infra": ["Night shift staffing", "E-com integrations"],
+                "marketing": [
+                    "Office bulk tie-ups",
+                    "Corporate discounts",
+                    "Fast delivery SLAs"
+                ],
+                "success_tip": "Guaranteed 30‑minute delivery for nearby tech parks."
+            },
+            "Kukatpally": {
+                "advantages": ["Family density; value market"],
+                "risks": ["Low margins"],
+                "budget": "₹8–15 lakhs",
+                "legal": ["Drug license", "GST"],
+                "space_type": "250–400 sq.ft.",
+                "target_customers": "Families, students",
+                "infra": ["Inventory control", "Generic meds section"],
+                "marketing": [
+                    "Doctor clinic tie-ups",
+                    "Apartment WhatsApp groups",
+                    "Refill reminders"
+                ],
+                "success_tip": "Promote generics to protect margins."
+            },
+            "Jubilee Hills": {
+                "advantages": ["Premium wellness products demand"],
+                "risks": ["High rent"],
+                "budget": "₹12–22 lakhs",
+                "legal": ["Drug license", "GST"],
+                "space_type": "300–500 sq.ft.",
+                "target_customers": "HNIs",
+                "infra": ["Cosmeceuticals", "Wellness SKUs"],
+                "marketing": [
+                    "Wellness events",
+                    "Influencer wellness hampers",
+                    "Loyalty program"
+                ],
+                "success_tip": "Premium wellness upsells increase margins."
+            },
+        },
+    },
+
+    "bakery": {
+        "Bangalore": {
+            "Koramangala": {
+                "advantages": ["High gifting & dessert demand"],
+                "risks": ["Competition with artisanal brands"],
+                "budget": "₹12–22 lakhs",
+                "legal": ["FSSAI", "Trade license", "GST"],
+                "space_type": "400–700 sq.ft. takeaway + 6–8 seats",
+                "target_customers": "Students, young families",
+                "infra": ["Baking ovens", "Display chillers", "Delivery tie-ins"],
+                "marketing": [
+                    "Birthday/party tie-ups with PGs",
+                    "Instagrammable cakes",
+                    "Limited edition festive boxes"
+                ],
+                "success_tip": "Pre-order calendar smoothens production."
+            },
+            "Indiranagar": {
+                "advantages": ["Premium desserts market"],
+                "risks": ["High fit-out cost"],
+                "budget": "₹18–28 lakhs",
+                "legal": ["FSSAI", "Trade license", "GST"],
+                "space_type": "500–800 sq.ft. premium frontage",
+                "target_customers": "HNIs, expats",
+                "infra": ["Custom cake studio", "High-end décor"],
+                "marketing": [
+                    "Influencer dessert tastings",
+                    "Brand collabs (coffee/gelato)",
+                    "Wedding/party planners network"
+                ],
+                "success_tip": "Focus on premium custom cakes & hampers."
+            },
+            "Whitefield": {
+                "advantages": ["Family celebrations; apartment orders"],
+                "risks": ["Demand spikes on weekends"],
+                "budget": "₹10–18 lakhs",
+                "legal": ["FSSAI", "Trade license", "GST"],
+                "space_type": "400–700 sq.ft.",
+                "target_customers": "Families",
+                "infra": ["Pre-order system", "Delivery routing"],
+                "marketing": [
+                    "Apartment tasting pop-ups",
+                    "Kids birthday packages",
+                    "Festive pre-booking campaigns"
+                ],
+                "success_tip": "Partner with party planners for steady orders."
+            },
+        },
+        "Hyderabad": {
+            "Jubilee Hills": {
+                "advantages": ["Premium gifting culture"],
+                "risks": ["High expectations for design/finish"],
+                "budget": "₹14–24 lakhs",
+                "legal": ["FSSAI", "Trade license", "GST"],
+                "space_type": "450–750 sq.ft.",
+                "target_customers": "HNIs, influencers",
+                "infra": ["Custom design studio", "Cold chain"],
+                "marketing": [
+                    "Influencer hampers",
+                    "Wedding planners",
+                    "Luxury brand collabs"
+                ],
+                "success_tip": "Signature hampers with premium pricing."
+            },
+            "Madhapur": {
+                "advantages": ["Office celebrations; weekday orders"],
+                "risks": ["Price comparisons"],
+                "budget": "₹10–18 lakhs",
+                "legal": ["FSSAI", "Trade license", "GST"],
+                "space_type": "400–650 sq.ft.",
+                "target_customers": "IT teams",
+                "infra": ["Bulk order capability", "Same-day delivery"],
+                "marketing": [
+                    "Corporate cake plans",
+                    "LinkedIn outreach to admins",
+                    "Bulk order discounts"
+                ],
+                "success_tip": "Guarantee 4–6 hour turnaround for office cakes."
+            },
+            "Gachibowli": {
+                "advantages": ["Student birthdays; hostel parties"],
+                "risks": ["Budget sensitivity"],
+                "budget": "₹8–15 lakhs",
+                "legal": ["FSSAI", "Trade license", "GST"],
+                "space_type": "350–600 sq.ft.",
+                "target_customers": "Students, young pros",
+                "infra": ["Quick bakes", "Affordable SKUs"],
+                "marketing": [
+                    "Campus coupons",
+                    "Bundle party kits",
+                    "Night delivery on weekends"
+                ],
+                "success_tip": "Keep hero SKUs under ₹199 for volume."
+            },
+        },
+    },
+
+    "coworking": {
+        "Bangalore": {
+            "Indiranagar": {
+                "advantages": ["Creator & startup density"],
+                "risks": ["High fit-out cost"],
+                "budget": "₹30–60 lakhs",
+                "legal": ["Trade license", "Fire NOC", "Lease compliance"],
+                "space_type": "3000–6000 sq.ft.",
+                "target_customers": "Startups, freelancers",
+                "infra": ["Hot desks, cabins, meeting rooms", "Coffee corner"],
+                "marketing": [
+                    "Creator events & meetups",
+                    "Startup community partnerships",
+                    "Monthly passes with perks"
+                ],
+                "success_tip": "Host events to convert trial visitors."
+            },
+            "Koramangala": {
+                "advantages": ["Early-stage startup hub"],
+                "risks": ["Churn in small teams"],
+                "budget": "₹25–50 lakhs",
+                "legal": ["Trade license", "Fire NOC"],
+                "space_type": "2500–5000 sq.ft.",
+                "target_customers": "Seed-stage startups",
+                "infra": ["Cabins + open area", "High-speed internet"],
+                "marketing": [
+                    "Incubator/accelerator tie-ups",
+                    "Free day-pass trials",
+                    "Referral credits"
+                ],
+                "success_tip": "Offer flexible 1–3 month contracts."
+            },
+            "Whitefield": {
+                "advantages": ["Enterprise satellite offices"],
+                "risks": ["Lower demand for hot-desks"],
+                "budget": "₹25–45 lakhs",
+                "legal": ["Trade license", "Fire NOC"],
+                "space_type": "3000–6000 sq.ft.",
+                "target_customers": "SMEs, remote teams",
+                "infra": ["Large meeting rooms", "Parking"],
+                "marketing": [
+                    "Corporate sales",
+                    "LinkedIn outreach",
+                    "Facility tours"
+                ],
+                "success_tip": "Focus on B2B corporate deals for stability."
+            },
+        },
+        "Hyderabad": {
+            "Madhapur": {
+                "advantages": ["Massive coworking demand from IT"],
+                "risks": ["Price competition"],
+                "budget": "₹25–50 lakhs",
+                "legal": ["Trade license", "Fire NOC"],
+                "space_type": "3000–6000 sq.ft.",
+                "target_customers": "Startups, IT teams",
+                "infra": ["Meeting rooms", "Phone booths", "Pantry"],
+                "marketing": [
+                    "Startup events",
+                    "Founder community partnerships",
+                    "Monthly credits for meeting rooms"
+                ],
+                "success_tip": "Bundle credits; upsell meeting rooms."
+            },
+            "Jubilee Hills": {
+                "advantages": ["Premium boutique coworking demand"],
+                "risks": ["High interiors cost"],
+                "budget": "₹30–60 lakhs",
+                "legal": ["Trade license", "Fire NOC"],
+                "space_type": "3000–5000 sq.ft. boutique",
+                "target_customers": "Creators, boutique agencies",
+                "infra": ["Aesthetic interiors", "Podcast corners"],
+                "marketing": [
+                    "Influencer co-work days",
+                    "Creator residencies",
+                    "Brand collabs"
+                ],
+                "success_tip": "Sell premium private studios to anchor revenue."
+            },
+            "Gachibowli": {
+                "advantages": ["Student founders + IT teams"],
+                "risks": ["Churn in early teams"],
+                "budget": "₹20–40 lakhs",
+                "legal": ["Trade license", "Fire NOC"],
+                "space_type": "2500–5000 sq.ft.",
+                "target_customers": "Student startups, remote IT",
+                "infra": ["Hot desks", "Small cabins"],
+                "marketing": [
+                    "College founder programs",
+                    "Hackathons",
+                    "Weekend passes"
+                ],
+                "success_tip": "Weekend hackathons drive discovery & leads."
+            },
+        },
+    },
+}
+
+# Synonyms & fuzzy mapping
+SYNONYMS = {
+    "coffee": "cafe",
+    "coffee shop": "cafe",
+    "restaurant": "restaurant",
+    "food": "restaurant",
+    "qsr": "restaurant",
+    "gym": "gym",
+    "fitness": "gym",
+    "saloon": "salon",
+    "barber": "salon",
+    "beauty": "salon",
+    "retail": "retail",
+    "clothing": "retail",
+    "apparel": "retail",
+    "clothes": "retail",
+    "electronics": "retail",
+    "pharmacy": "pharmacy",
+    "medical": "pharmacy",
+    "chemist": "pharmacy",
+    "bakery": "bakery",
+    "cakes": "bakery",
+    "cowork": "coworking",
+    "co-working": "coworking",
+    "co working": "coworking",
+}
+
+# Generic heuristic templates when a business isn't in our KB
+GENERIC_TEMPLATES = {
+    "Bangalore": {
+        "Koramangala": {
+            "advantages": ["Youth + startup density", "High social discovery"],
+            "risks": ["High rents", "Competition in trendy categories"],
+            "budget": "₹10–25 lakhs (category dependent)",
+            "legal": ["Trade license", "GST", "Category-specific permits"],
+            "space_type": "High-street 600–1200 sq.ft.",
+            "target_customers": "Students, young pros",
+            "infra": ["Visible signage", "UPI-first checkout"],
+            "marketing": ["Influencer micro-campaigns", "Student partnerships"],
+            "success_tip": "Start with a lean MVP & iterate fast."
+        },
+        "Indiranagar": {
+            "advantages": ["Premium footfall", "Brand-conscious audience"],
+            "risks": ["Very high rentals", "High fit-out expectations"],
+            "budget": "₹15–35 lakhs",
+            "legal": ["Trade license", "GST"],
+            "space_type": "Premium frontage 800–1500 sq.ft.",
+            "target_customers": "Affluent millennials",
+            "infra": ["Premium interiors", "Booking system if services"],
+            "marketing": ["Influencer events", "Members-only previews"],
+            "success_tip": "Premiumize offering to protect margins."
+        },
+        "Whitefield": {
+            "advantages": ["IT parks + families", "Apartment community access"],
+            "risks": ["Weekend drift to city center"],
+            "budget": "₹8–20 lakhs",
+            "legal": ["Trade license", "GST"],
+            "space_type": "Community high-street 600–1200 sq.ft.",
+            "target_customers": "IT pros, families",
+            "infra": ["Parking if possible", "Delivery enablement"],
+            "marketing": ["Corporate tie-ups", "Apartment pop-ups"],
+            "success_tip": "Anchor weekday B2B/corporate demand."
+        },
+    },
+    "Hyderabad": {
+        "Jubilee Hills": {
+            "advantages": ["Premium audience", "High ASP potential"],
+            "risks": ["High rent & capex"],
+            "budget": "₹12–30 lakhs",
+            "legal": ["Trade license (GHMC)", "GST"],
+            "space_type": "Premium high-street 700–1500 sq.ft.",
+            "target_customers": "HNIs, creators",
+            "infra": ["Premium fit-out", "Valet/parking coordination"],
+            "marketing": ["Influencer launches", "PR features"],
+            "success_tip": "Create Instagrammable experiences."
+        },
+        "Madhapur": {
+            "advantages": ["IT workforce", "Weekday stability"],
+            "risks": ["Competitive landscape"],
+            "budget": "₹8–22 lakhs",
+            "legal": ["Trade license", "GST"],
+            "space_type": "Office cluster 600–1200 sq.ft.",
+            "target_customers": "IT employees",
+            "infra": ["Fast service ops", "Delivery-first design"],
+            "marketing": ["Corporate plans", "LinkedIn outreach"],
+            "success_tip": "SLAs & convenience win loyalty."
+        },
+        "Gachibowli": {
+            "advantages": ["Students + IT mix", "Budget-friendly demand"],
+            "risks": ["Price sensitivity"],
+            "budget": "₹7–18 lakhs",
+            "legal": ["Trade license", "GST"],
+            "space_type": "Near campuses 500–1000 sq.ft.",
+            "target_customers": "Students, young pros",
+            "infra": ["Affordable SKUs", "Strong Wi‑Fi if service"],
+            "marketing": ["Campus coupons", "Hostel tie-ups"],
+            "success_tip": "Entry-level pricing to hook demand."
+        },
+    },
+}
+
+def normalize_business(b: str) -> str:
+    b = (b or "").strip().lower()
+    if b in KB:
+        return b
+    if b in SYNONYMS:
+        return SYNONYMS[b]
+    # try keyword contains
+    for k, v in SYNONYMS.items():
+        if k in b:
+            return v
+    return b  # unknown, will use generic templates
+
+def compile_report_text(business: str, recs: Dict[str, Dict]):
+    buf = io.StringIO()
+    buf.write(f"# Recommendations for '{business.title()}' in Bangalore & Hyderabad\n\n")
+    for city, places in recs.items():
+        buf.write(f"## {city}\n")
+        for locality, info in places.items():
+            buf.write(f"### {locality}\n")
+            buf.write(f"- **Advantages:** " + "; ".join(info.get("advantages", [])) + "\n")
+            buf.write(f"- **Risks:** " + "; ".join(info.get("risks", [])) + "\n")
+            buf.write(f"- **Budget:** {info.get('budget','N/A')}\n")
+            buf.write(f"- **Legal/Permits:** " + ", ".join(info.get("legal", [])) + "\n")
+            buf.write(f"- **Type of Space:** {info.get('space_type','')}\n")
+            buf.write(f"- **Target Customers:** {info.get('target_customers','')}\n")
+            buf.write(f"- **Infrastructure:** " + ", ".join(info.get("infra", [])) + "\n")
+            buf.write(f"- **Marketing:** " + "; ".join(info.get("marketing", [])) + "\n")
+            buf.write(f"- **Success Tip:** {info.get('success_tip','')}\n\n")
+    return buf.getvalue()
+
+st.divider()
+business_input = st.text_input("🔎 Enter your business (e.g., cafe, gym, salon, restaurant, retail, pharmacy, bakery, coworking):")
+
+if st.button("Generate Best Places & Strategy") or business_input:
+    bnorm = normalize_business(business_input)
+    # Build recommendations object
+    recs = {}
+    if bnorm in KB:
+        for city in ["Bangalore", "Hyderabad"]:
+            recs[city] = KB[bnorm][city]
+    else:
+        # Use generic heuristic templates
+        for city in ["Bangalore", "Hyderabad"]:
+            recs[city] = GENERIC_TEMPLATES[city]
+
+    # --- UI Render ---
+    st.subheader(f"📍 Best Places & Strategy for **{business_input.title() or '—'}**")
+    cols = st.columns(2)
+    for i, city in enumerate(["Bangalore", "Hyderabad"]):
+        with cols[i]:
+            st.markdown(f"### {city}")
+            for locality, info in recs[city].items():
+                with st.expander(f"{locality} — click to view details", expanded=False):
+                    st.markdown(f"**Advantages:**")
+                    for x in info.get("advantages", []):
+                        st.write(f"- {x}")
+                    st.markdown(f"**Risks:**")
+                    for x in info.get("risks", []):
+                        st.write(f"- {x}")
+                    st.markdown(f"**Budget:** {info.get('budget','N/A')}")
+                    st.markdown(f"**Legal & Permits:** " + ", ".join(info.get("legal", [])))
+                    st.markdown(f"**Type of Space:** {info.get('space_type','')}")
+                    st.markdown(f"**Target Customers:** {info.get('target_customers','')}")
+                    st.markdown(f"**Infrastructure:** " + ", ".join(info.get('infra', [])))
+                    st.markdown(f"**Marketing Techniques:**")
+                    for x in info.get("marketing", []):
+                        st.write(f"- {x}")
+                    if info.get("success_tip"):
+                        st.info(f"💡 Success Tip: {info['success_tip']}")
+
+    # Download report as Markdown
+    md_text = compile_report_text(business_input or bnorm, recs)
+    st.download_button("📥 Download Strategy (Markdown)", data=md_text.encode("utf-8"),
+                       file_name=f"{(business_input or bnorm or 'business').replace(' ','_')}_BLR_HYD_strategy.md",
+                       mime="text/markdown")
+'''
+
+requirements_txt = "streamlit\n"
+
+# Write files to /mnt/data and zip
+base_dir = "/mnt/data/smart_franchise_locator"
+os.makedirs(base_dir, exist_ok=True)
+with open(os.path.join(base_dir, "app.py"), "w", encoding="utf-8") as f:
+    f.write(app_py)
+with open(os.path.join(base_dir, "requirements.txt"), "w", encoding="utf-8") as f:
+    f.write(requirements_txt)
+
+zip_path = "/mnt/data/smart_franchise_locator.zip"
+with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as z:
+    z.write(os.path.join(base_dir, "app.py"), "app.py")
+    z.write(os.path.join(base_dir, "requirements.txt"), "requirements.txt")
+
+zip_path
